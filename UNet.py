@@ -41,16 +41,16 @@ class UNET(nn.Module):
             in_channels = feature
         
         for feature in reversed(features):
-            in_channels = 2 * feature
             self.ups.append(
-                nn.ConvTranspose2d(in_channels, feature, 2, 2)
+                nn.ConvTranspose2d(feature * 2, feature, 2, 2)
             )
             self.ups.append(
-                DoubleConv(in_channels, feature)
+                DoubleConv(feature * 2, feature)
             )
     
     def forward(self, x):
         skip_connections =  deque()
+
         for down in self.downs:
             x = down(x)
             skip_connections.appendleft(x)
@@ -62,7 +62,12 @@ class UNET(nn.Module):
             if not (idx%2):
                 x = up(x)
                 skip_connection = skip_connections.popleft()
-                concat_skip = torch.cat((skip_connection, x), 1)
+
+                diffY = skip_connection.size()[2] - x.size()[2]
+                diffX = skip_connection.size()[3] - x.size()[3]
+                skip_cropped = skip_connection[:, :, diffY // 2 : (diffY // 2 + x.size()[2]), diffX // 2 : (diffX // 2 + x.size()[3])]
+
+                concat_skip = torch.cat((skip_cropped, x), 1)
             
             x = up(concat_skip)
 
